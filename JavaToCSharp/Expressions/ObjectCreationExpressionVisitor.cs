@@ -28,10 +28,21 @@ public class ObjectCreationExpressionVisitor : ExpressionVisitor<ObjectCreationE
         //}
 
         var type = newExpr.getType();
+        var args = newExpr.getArguments();
+        var typeArgs = type.getTypeArguments().FromOptional<NodeList>()?.ToList<com.github.javaparser.ast.type.Type>();
+
+        // Use target-typed new (C# 9+) when type args are missing/empty (Java diamond operator)
+        // This lets C# infer the type from context, e.g., List<Item> items = new();
+        if (typeArgs is null || typeArgs.Count == 0)
+        {
+            var argList = (args is null || args.size() == 0)
+                ? SyntaxFactory.ArgumentList()
+                : TypeHelper.GetSyntaxFromArguments(context, args);
+            return SyntaxFactory.ImplicitObjectCreationExpression()
+                .WithArgumentList(argList);
+        }
 
         var typeSyntax = TypeHelper.GetSyntaxFromType(type);
-
-        var args = newExpr.getArguments();
 
         if (args is null || args.size() == 0)
         {

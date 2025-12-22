@@ -244,13 +244,18 @@ public class Program
                     continue;
                 }
 
-                if (!outputDirectory.Exists)
+                // Preserve relative directory structure from input to output
+                var relativePath = Path.GetRelativePath(inputDirectory.FullName, f.FullName);
+                var outputFilePath = Path.Combine(outputDirectory.FullName, Path.ChangeExtension(relativePath, ".cs"));
+                var outputFileDir = Path.GetDirectoryName(outputFilePath);
+
+                if (!string.IsNullOrEmpty(outputFileDir) && !Directory.Exists(outputFileDir))
                 {
-                    outputDirectory.Create();
+                    Directory.CreateDirectory(outputFileDir);
                 }
 
                 ConvertToCSharpFile(f,
-                    new FileInfo(Path.Combine(outputDirectory.FullName, Path.ChangeExtension(f.Name, ".cs"))),
+                    new FileInfo(outputFilePath),
                     options,
                     false);
             }

@@ -20,16 +20,33 @@ public static class TypeHelper
         ["Integer"] = "int",
         ["Long"] = "long",
         ["Float"] = "float",
+        ["Double"] = "double",
         ["String"] = "string",
         ["Object"] = "object",
         ["AutoCloseable"] = "IDisposable",
+        ["Throwable"] = "Exception",
+
+        // Java NIO buffers → arrays
+        ["FloatBuffer"] = "float[]",
+        ["ShortBuffer"] = "short[]",
+        ["IntBuffer"] = "int[]",
+        ["ByteBuffer"] = "byte[]",
+        ["Buffer"] = "Array",
+
+        // Java regex
+        ["Pattern"] = "Regex",
+        ["Matcher"] = "Match",
 
         // Generic types
         ["ArrayList"] = "List",
         ["List"] = "IList",
         ["Map"] = "Dictionary",
+        ["HashMap"] = "Dictionary",
+        ["LinkedHashMap"] = "Dictionary",
         ["Set"] = "HashSet",
         ["Iterator"] = "IEnumerator",
+        ["Comparator"] = "IComparer",
+        ["Class"] = "Type",
 
         // Exceptions
         ["AlreadyClosedException"] = "ObjectDisposedException",
@@ -121,7 +138,9 @@ public static class TypeHelper
         return name switch {
             "string" or "ref" or "object" or "int" or "short" or "float" or "long" or "double" or "decimal" or "in" or
             "out" or "byte" or "class" or "delegate" or "params" or "is" or "as" or "base" or "namespace" or "event" or
-            "lock" or "operator" or "override" => "@" + name,
+            "lock" or "operator" or "override" or "checked" or "unchecked" or "fixed" or "bool" or "char" or "new" or
+            "typeof" or "sizeof" or "volatile" or "readonly" or "internal" or "virtual" or "extern" or "implicit" or
+            "explicit" or "default" => "@" + name,
             _ => name,
         };
     }
@@ -143,7 +162,8 @@ public static class TypeHelper
 
         TypeSyntax typeSyntax;
 
-        if (typeArgs is { Count: > 0 })
+        // C#'s Type is not generic, so drop type arguments when converting from Java's Class<T>
+        if (typeArgs is { Count: > 0 } && typeName != "Type")
         {
             typeSyntax = SyntaxFactory.GenericName(typeName)
                 .AddTypeArgumentListArguments(typeArgs.Select(t => SyntaxFactory.ParseTypeName(ConvertType(t))).ToArray());
@@ -247,6 +267,7 @@ public static class TypeHelper
                 }
 
                 case "get" when args.size() == 1:
+                case "charAt" when args.size() == 1:
                 {
                     var scopeSyntaxGet = ExpressionVisitor.VisitExpression(context, scope);
                     if (scopeSyntaxGet is null)

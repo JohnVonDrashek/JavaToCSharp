@@ -26,7 +26,20 @@ public class ForStatementVisitor : StatementVisitor<ForStmt>
 
                     var variableDeclarators = varExpr.getVariables()?.ToList<VariableDeclarator>() ?? [];
                     var vars = variableDeclarators
-                               .Select(i => SyntaxFactory.VariableDeclarator(i.toString()))
+                               .Select(i =>
+                               {
+                                   var varDecl = SyntaxFactory.VariableDeclarator(TypeHelper.EscapeIdentifier(i.getNameAsString()));
+                                   var initExpr = i.getInitializer().FromOptional<Expression>();
+                                   if (initExpr is not null)
+                                   {
+                                       var initSyntax = ExpressionVisitor.VisitExpression(context, initExpr);
+                                       if (initSyntax is not null)
+                                       {
+                                           varDecl = varDecl.WithInitializer(SyntaxFactory.EqualsValueClause(initSyntax));
+                                       }
+                                   }
+                                   return varDecl;
+                               })
                                .ToArray();
 
                     varSyntax = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName(type), SyntaxFactory.SeparatedList(vars, Enumerable.Repeat(SyntaxFactory.Token(SyntaxKind.CommaToken), vars.Length - 1)));

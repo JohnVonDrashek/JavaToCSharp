@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Parameter = com.github.javaparser.ast.body.Parameter;
+using TypeParameter = com.github.javaparser.ast.type.TypeParameter;
 
 namespace JavaToCSharp.Declarations;
 
@@ -40,14 +41,17 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
         var methodName = TypeHelper.Capitalize(methodDecl.getNameAsString());
         methodName = TypeHelper.ReplaceCommonMethodNames(methodName);
 
-        string typeParameters = methodDecl.getTypeParameters().ToString() ?? "";
-        if (typeParameters.Length > 2)
-        {
-            // Looks like "[T, U]". Convert to "<T, U>"
-            methodName += typeParameters.Replace('[', '<').Replace(']', '>');
-        }
-
         var methodSyntax = SyntaxFactory.MethodDeclaration(SyntaxFactory.ParseTypeName(returnTypeName), methodName);
+
+        // Add type parameters and constraints
+        var typeParams = methodDecl.getTypeParameters().ToList<TypeParameter>();
+        if (typeParams is { Count: > 0 })
+        {
+            methodSyntax = methodSyntax.AddTypeParameterListParameters(typeParams
+                .Select(i => SyntaxFactory.TypeParameter(i.getNameAsString())).ToArray());
+            methodSyntax = methodSyntax.AddConstraintClauses(
+                TypeHelper.GetTypeParameterListConstraints(typeParams).ToArray());
+        }
 
         var parameters = methodDecl.getParameters().ToList<Parameter>();
 
@@ -84,14 +88,17 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
         var methodName = TypeHelper.Capitalize(methodDecl.getNameAsString());
         methodName = TypeHelper.ReplaceCommonMethodNames(methodName);
 
-        string typeParameters = methodDecl.getTypeParameters().ToString() ?? "";
-        if (typeParameters.Length > 2)
-        {
-            // Looks like "[T, U]". Convert to "<T, U>"
-            methodName += typeParameters.Replace('[', '<').Replace(']', '>');
-        }
-
         var methodSyntax = SyntaxFactory.MethodDeclaration(SyntaxFactory.ParseTypeName(returnTypeName), methodName);
+
+        // Add type parameters and constraints
+        var typeParams = methodDecl.getTypeParameters().ToList<TypeParameter>();
+        if (typeParams is { Count: > 0 })
+        {
+            methodSyntax = methodSyntax.AddTypeParameterListParameters(typeParams
+                .Select(i => SyntaxFactory.TypeParameter(i.getNameAsString())).ToArray());
+            methodSyntax = methodSyntax.AddConstraintClauses(
+                TypeHelper.GetTypeParameterListConstraints(typeParams).ToArray());
+        }
 
         var mods = methodDecl.getModifiers().ToModifierKeywordSet();
 
@@ -116,15 +123,14 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
             {
                 string name = annotation.getNameAsString();
 
-                // ignore @Override annotation on interface-only classes. Unfortunately this is as good as we can get for now.
-                if (name == "Override"
-                    && extends.Count > 0)
+                if (name == "Override")
                 {
                     methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
                     isOverride = true;
                 }
-                // add annotation if a mapping is found
-                else if (context.Options is not null && context.Options.SyntaxMappings.AnnotationMappings.TryGetValue(name, out var mappedAnnotation))
+                // add annotation if a mapping is found (empty mapping means suppress the annotation)
+                else if (context.Options is not null && context.Options.SyntaxMappings.AnnotationMappings.TryGetValue(name, out var mappedAnnotation)
+                         && !string.IsNullOrEmpty(mappedAnnotation))
                 {
                     var attributeList = SyntaxFactory.AttributeList(
                         SyntaxFactory.SingletonSeparatedList(

@@ -23,7 +23,7 @@ public class ForEachStatementVisitor : StatementVisitor<ForEachStmt>
 
         var variableDeclarators = varExpr.getVariables()?.ToList<VariableDeclarator>()?? [];
         var vars = variableDeclarators
-                   .Select(i => SyntaxFactory.VariableDeclarator(i.toString()))
+                   .Select(i => SyntaxFactory.VariableDeclarator(TypeHelper.EscapeIdentifier(i.getNameAsString())))
                    .ToArray();
 
         var body = foreachStmt.getBody();

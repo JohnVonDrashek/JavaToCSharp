@@ -2,6 +2,7 @@
 using com.github.javaparser.ast.body;
 using com.github.javaparser.ast.expr;
 using com.github.javaparser.ast.type;
+using JavaToCSharp.Statements;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -158,10 +159,18 @@ public class ClassOrInterfaceDeclarationVisitor : BodyDeclarationVisitor<ClassOr
 
         var members = classDecl.getMembers()?.ToList<BodyDeclaration>();
 
+        // Collect static initializers to merge into a single static constructor
+        var staticInitializers = members?.OfType<InitializerDeclaration>()
+            .Where(i => i.isStatic()).ToList() ?? [];
+
         if (members is not null)
         {
             foreach (var member in members)
             {
+                // Skip static initializers - they'll be merged below
+                if (member is InitializerDeclaration id && id.isStatic())
+                    continue;
+
                 if (member is ClassOrInterfaceDeclaration childType)
                 {
                     if (childType.isInterface())
@@ -194,6 +203,22 @@ public class ClassOrInterfaceDeclarationVisitor : BodyDeclarationVisitor<ClassOr
                     classSyntax = classSyntax.AddMembers(anon);
                 }
             }
+        }
+
+        // Merge all static initializers into one static constructor
+        if (staticInitializers.Count > 0)
+        {
+            var allStatements = staticInitializers
+                .SelectMany(i => {
+                    var block = (BlockSyntax)new BlockStatementVisitor().Visit(context, i.getBody());
+                    return block.Statements;
+                }).ToArray();
+
+            var staticCtor = SyntaxFactory.ConstructorDeclaration(classSyntax.Identifier.ValueText)
+                .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.StaticKeyword)))
+                .WithBody(SyntaxFactory.Block(allStatements));
+
+            classSyntax = classSyntax.AddMembers(staticCtor);
         }
 
         var annotations = classDecl.getAnnotations().ToList<AnnotationExpr>();

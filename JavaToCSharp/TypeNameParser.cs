@@ -86,10 +86,37 @@ public static partial class TypeNameParser
         // TypeName = identifier [ "<" TypeArgument { "," TypeArgument } ">" ].
         if (_token.type is TokenType.Identifier)
         {
-            _sb.Append(_translate?.Invoke(_token.text));
+            var translatedName = _translate?.Invoke(_token.text);
+            _sb.Append(translatedName);
             NextToken();
             if (_token.type is TokenType.LeftAngleBracket)
             {
+                // C#'s Type is not generic, so skip type arguments for Class<T> -> Type
+                if (translatedName == "Type")
+                {
+                    // Skip all tokens until matching >
+                    int depth = 1;
+                    NextToken();
+                    while (depth > 0 && _token.type != TokenType.EndOfString)
+                    {
+                        if (_token.type == TokenType.LeftAngleBracket) depth++;
+                        else if (_token.type == TokenType.RightAngleBracket) depth--;
+                        NextToken();
+                    }
+                    // Handle array brackets after Type
+                    while (_token.type is TokenType.LeftSquareBracket)
+                    {
+                        _sb.Append('[');
+                        NextToken();
+                        if (_token.type is TokenType.RightSquareBracket)
+                        {
+                            _sb.Append(']');
+                            NextToken();
+                        }
+                    }
+                    return true;
+                }
+
                 _sb.Append('<');
                 NextToken();
                 if (TypeArgument())
@@ -121,15 +148,28 @@ public static partial class TypeNameParser
         // TypeArgument = [ "?" [ "extends" | "super" ] ] TypeName.
         if (_token.type is TokenType.QuestionMark)
         {
-            _sb.Append("TWildcardTodo");
             NextToken();
 
-            if (_token.type is TokenType.Extends or TokenType.Super)
+            if (_token.type is TokenType.Extends)
             {
+                // ? extends T -> just use T (C# covariance handles this)
                 NextToken();
+                return TypeName();
             }
-            else if (_token.type is TokenType.RightAngleBracket)
+            else if (_token.type is TokenType.Super)
             {
+                // ? super T -> use object (C# doesn't support lower bounds)
+                NextToken();
+                int len = _sb.Length;
+                TypeName(); // consume the type but don't use it
+                _sb.Length = len; // discard the appended type
+                _sb.Append("object");
+                return true;
+            }
+            else
+            {
+                // Unbounded ? -> use object
+                _sb.Append("object");
                 return true;
             }
         }

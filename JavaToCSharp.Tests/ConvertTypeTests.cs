@@ -41,9 +41,45 @@ public class ConvertTypeTests
     }
 
     [Fact]
-    public void ConvertType_WithGenericWildcard_ShouldReplaceToken()
+    public void ConvertType_WithGenericWildcard_ShouldUseObject()
     {
-        Assert.Equal("MyType<TWildcardTodo>", TypeHelper.ConvertType("MyType<?>"));
+        Assert.Equal("MyType<object>", TypeHelper.ConvertType("MyType<?>"));
+    }
+
+    [Fact]
+    public void ConvertType_WithExtendsWildcard_ShouldUseBoundType()
+    {
+        Assert.Equal("MyType<string>", TypeHelper.ConvertType("MyType<? extends String>"));
+    }
+
+    [Fact]
+    public void ConvertType_WithSuperWildcard_ShouldUseObject()
+    {
+        Assert.Equal("MyType<object>", TypeHelper.ConvertType("MyType<? super String>"));
+    }
+
+    [Fact]
+    public void ConvertType_ClassWithWildcard_ShouldBeType()
+    {
+        Assert.Equal("Type", TypeHelper.ConvertType("Class<?>"));
+    }
+
+    [Fact]
+    public void ConvertType_ClassArrayWithWildcard_ShouldBeTypeArray()
+    {
+        Assert.Equal("Type[]", TypeHelper.ConvertType("Class<?>[]"));
+    }
+
+    [Fact]
+    public void ConvertType_ClassWithExtendsBound_ShouldBeType()
+    {
+        Assert.Equal("Type", TypeHelper.ConvertType("Class<? extends Ring>"));
+    }
+
+    [Fact]
+    public void ConvertType_ClassArrayWithExtendsBound_ShouldBeTypeArray()
+    {
+        Assert.Equal("Type[]", TypeHelper.ConvertType("Class<? extends Ring>[]"));
     }
 
     [Fact]

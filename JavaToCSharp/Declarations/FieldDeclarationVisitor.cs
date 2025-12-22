@@ -45,6 +45,8 @@ public class FieldDeclarationVisitor : BodyDeclarationVisitor<FieldDeclaration>
                 }
             }
 
+            name = TypeHelper.EscapeIdentifier(name);
+
             var initExpr = item.getInitializer().FromOptional<Expression>();
 
             if (initExpr is not null)

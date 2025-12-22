@@ -32,8 +32,10 @@ public class FieldAccessExpressionVisitor : ExpressionVisitor<FieldAccessExpr>
         }
 
         var field = TypeHelper.EscapeIdentifier(fieldAccessExpr.getNameAsString());
-        // array length accessor should be capitalized
-        field = field == "length" ? "Length" : field;
+
+        // Java array.length -> C# array.Length
+        if (field == "length")
+            field = "Length";
 
         return SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, scopeSyntax, SyntaxFactory.IdentifierName(field));
     }

@@ -26,7 +26,7 @@ public class EnumDeclarationVisitor : BodyDeclarationVisitor<EnumDeclaration>
         return VisitEnumDeclaration(context, declaration);
     }
 
-    public static EnumDeclarationSyntax VisitEnumDeclaration(ConversionContext context, EnumDeclaration enumDecl)
+    public static MemberDeclarationSyntax VisitEnumDeclaration(ConversionContext context, EnumDeclaration enumDecl)
     {
         var name = enumDecl.getNameAsString();
         context.LastTypeName = name;
@@ -34,6 +34,12 @@ public class EnumDeclarationVisitor : BodyDeclarationVisitor<EnumDeclaration>
         var enumSyntax = SyntaxFactory.EnumDeclaration(name);
 
         var typeConstants = enumDecl.getEntries().ToList<EnumConstantDeclaration>();
+
+        // If any entry has constructor args, convert to sealed class pattern
+        if (typeConstants?.Any(e => !e.getArguments().isEmpty()) == true)
+        {
+            return VisitRichEnumAsClass(context, enumDecl, name, typeConstants);
+        }
 
         if (typeConstants is { Count: > 0 })
         {
@@ -97,8 +103,6 @@ public class EnumDeclarationVisitor : BodyDeclarationVisitor<EnumDeclaration>
         if (mods.Contains(Modifier.Keyword.PUBLIC))
             enumSyntax = enumSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
 
-        context.Options.StaticUsingEnumNames.Add(name);
-
         return enumSyntax.WithJavaComments(context, enumDecl);
 
         EnumMemberDeclarationSyntax MembersToCommentTrivia(EnumMemberDeclarationSyntax lastMemberDecl,
@@ -117,5 +121,101 @@ public class EnumDeclarationVisitor : BodyDeclarationVisitor<EnumDeclaration>
 
             return lastMemberDecl;
         }
+    }
+
+    private static ClassDeclarationSyntax VisitRichEnumAsClass(
+        ConversionContext context,
+        EnumDeclaration enumDecl,
+        string name,
+        List<EnumConstantDeclaration> entries)
+    {
+        // Create sealed class with same modifiers
+        var classSyntax = SyntaxFactory.ClassDeclaration(name)
+            .AddModifiers(SyntaxFactory.Token(SyntaxKind.SealedKeyword));
+
+        var mods = enumDecl.getModifiers().ToModifierKeywordSet();
+        if (mods.Contains(Modifier.Keyword.PUBLIC))
+            classSyntax = classSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+        if (mods.Contains(Modifier.Keyword.PROTECTED))
+            classSyntax = classSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.ProtectedKeyword));
+        if (mods.Contains(Modifier.Keyword.PRIVATE))
+            classSyntax = classSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword));
+
+        var membersList = new List<MemberDeclarationSyntax>();
+
+        // Generate static readonly field for each enum constant
+        foreach (var entry in entries)
+        {
+            var entryName = entry.getNameAsString();
+            var args = entry.getArguments();
+
+            var argList = args.isEmpty()
+                ? SyntaxFactory.ArgumentList()
+                : TypeHelper.GetSyntaxFromArguments(context, args);
+
+            var initExpr = SyntaxFactory.ObjectCreationExpression(SyntaxFactory.IdentifierName(name))
+                .WithArgumentList(argList);
+
+            var fieldSyntax = SyntaxFactory.FieldDeclaration(
+                SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName(name))
+                    .AddVariables(SyntaxFactory.VariableDeclarator(entryName)
+                        .WithInitializer(SyntaxFactory.EqualsValueClause(initExpr))))
+                .AddModifiers(
+                    SyntaxFactory.Token(SyntaxKind.PublicKeyword),
+                    SyntaxFactory.Token(SyntaxKind.StaticKeyword),
+                    SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+
+            membersList.Add(fieldSyntax);
+        }
+
+        // Convert enum fields and constructors
+        var members = enumDecl.getMembers().ToList<BodyDeclaration>() ?? [];
+        var emptyList = Array.Empty<ClassOrInterfaceType>();
+        var hasConstructor = false;
+
+        foreach (var member in members)
+        {
+            if (member is FieldDeclaration)
+            {
+                var fieldSyntax = BodyDeclarationVisitor.VisitBodyDeclarationForClass(
+                    context, classSyntax, member, emptyList, emptyList);
+                if (fieldSyntax != null)
+                    membersList.Add(fieldSyntax);
+            }
+            else if (member is ConstructorDeclaration)
+            {
+                var ctorSyntax = BodyDeclarationVisitor.VisitBodyDeclarationForClass(
+                    context, classSyntax, member, emptyList, emptyList) as ConstructorDeclarationSyntax;
+                if (ctorSyntax != null)
+                {
+                    // Force private modifier for enum constructors
+                    ctorSyntax = ctorSyntax
+                        .WithModifiers(SyntaxFactory.TokenList(
+                            SyntaxFactory.Token(SyntaxKind.PrivateKeyword)));
+                    membersList.Add(ctorSyntax);
+                    hasConstructor = true;
+                }
+            }
+            else if (member is MethodDeclaration)
+            {
+                var methodSyntax = BodyDeclarationVisitor.VisitBodyDeclarationForClass(
+                    context, classSyntax, member, emptyList, emptyList);
+                if (methodSyntax != null)
+                    membersList.Add(methodSyntax);
+            }
+        }
+
+        // Fallback: if no constructor found, add empty private constructor
+        if (!hasConstructor)
+        {
+            var ctorSyntax = SyntaxFactory.ConstructorDeclaration(name)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
+                .WithBody(SyntaxFactory.Block());
+            membersList.Add(ctorSyntax);
+        }
+
+        classSyntax = classSyntax.AddMembers(membersList.ToArray());
+
+        return classSyntax.WithJavaComments(context, enumDecl);
     }
 }

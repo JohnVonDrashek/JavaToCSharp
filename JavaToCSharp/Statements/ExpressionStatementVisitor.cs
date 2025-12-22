@@ -55,6 +55,8 @@ public class ExpressionStatementVisitor : StatementVisitor<ExpressionStmt>
                 }
             }
 
+            name = TypeHelper.EscapeIdentifier(name);
+
             var initExpr = item.getInitializer().FromOptional<Expression>();
 
             if (initExpr is not null)
