@@ -31,9 +31,10 @@ public class ClassOrInterfaceDeclarationVisitor : BodyDeclarationVisitor<ClassOr
         ClassOrInterfaceDeclaration interfaceDecl, bool isNested = false)
     {
         var originalTypeName = interfaceDecl.getName();
+        var convertedName = TypeHelper.ConvertType(originalTypeName.getIdentifier());
         var newTypeName = context.Options.StartInterfaceNamesWithI
-            ? $"I{originalTypeName.getIdentifier()}"
-            : originalTypeName.getIdentifier();
+            ? $"I{convertedName}"
+            : convertedName;
 
         if (context.Options.StartInterfaceNamesWithI)
         {
@@ -110,7 +111,7 @@ public class ClassOrInterfaceDeclarationVisitor : BodyDeclarationVisitor<ClassOr
     public static ClassDeclarationSyntax VisitClassDeclaration(ConversionContext context,
         ClassOrInterfaceDeclaration classDecl, bool isNested = false)
     {
-        string name = classDecl.getNameAsString();
+        string name = TypeHelper.ConvertType(classDecl.getNameAsString());
 
         if (!isNested)
         {

@@ -188,6 +188,12 @@ public class Program
         if (!string.IsNullOrEmpty(mappingsFile))
         {
             options.SyntaxMappings = ReadMappingsFile(mappingsFile);
+
+            // Apply type mappings to TypeHelper
+            foreach (var (key, value) in options.SyntaxMappings.TypeMappings)
+            {
+                TypeHelper.AddOrUpdateTypeNameConversions(key, value);
+            }
         }
 
         return options;

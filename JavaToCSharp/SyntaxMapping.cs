@@ -3,6 +3,7 @@
 public class SyntaxMapping
 {
     public Dictionary<string, string> ImportMappings { get; set; } = new();
+    public Dictionary<string, string> TypeMappings { get; set; } = new();
     public Dictionary<string, string> VoidMethodMappings { get; set; } = new();
     public Dictionary<string, string> NonVoidMethodMappings { get; set; } = new();
     public Dictionary<string, string> AnnotationMappings { get; set; } = new();
