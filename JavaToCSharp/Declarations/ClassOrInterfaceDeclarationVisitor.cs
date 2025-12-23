@@ -3,6 +3,7 @@ using com.github.javaparser.ast.body;
 using com.github.javaparser.ast.expr;
 using com.github.javaparser.ast.type;
 using JavaToCSharp.Statements;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -164,12 +165,16 @@ public class ClassOrInterfaceDeclarationVisitor : BodyDeclarationVisitor<ClassOr
         var staticInitializers = members?.OfType<InitializerDeclaration>()
             .Where(i => i.isStatic()).ToList() ?? [];
 
+        // Collect instance initializers to merge into a parameterless constructor
+        var instanceInitializers = members?.OfType<InitializerDeclaration>()
+            .Where(i => !i.isStatic()).ToList() ?? [];
+
         if (members is not null)
         {
             foreach (var member in members)
             {
-                // Skip static initializers - they'll be merged below
-                if (member is InitializerDeclaration id && id.isStatic())
+                // Skip all initializers - they'll be merged below
+                if (member is InitializerDeclaration)
                     continue;
 
                 if (member is ClassOrInterfaceDeclaration childType)
@@ -220,6 +225,47 @@ public class ClassOrInterfaceDeclarationVisitor : BodyDeclarationVisitor<ClassOr
                 .WithBody(SyntaxFactory.Block(allStatements));
 
             classSyntax = classSyntax.AddMembers(staticCtor);
+        }
+
+        // Merge all instance initializers - prepend to existing constructors or create new one
+        if (instanceInitializers.Count > 0)
+        {
+            var initStatements = instanceInitializers
+                .SelectMany(i => {
+                    var block = (BlockSyntax)new BlockStatementVisitor().Visit(context, i.getBody());
+                    return block.Statements;
+                }).ToArray();
+
+            // Find existing constructors (non-static)
+            var existingCtors = classSyntax.Members.OfType<ConstructorDeclarationSyntax>()
+                .Where(c => !c.Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword))).ToList();
+
+            if (existingCtors.Count > 0)
+            {
+                // Prepend initializer statements to each existing constructor
+                var newMembers = classSyntax.Members.Select(member =>
+                {
+                    if (member is ConstructorDeclarationSyntax ctor &&
+                        !ctor.Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword)))
+                    {
+                        var existingStatements = ctor.Body?.Statements ?? [];
+                        var newBody = SyntaxFactory.Block(initStatements.Concat(existingStatements));
+                        return ctor.WithBody(newBody);
+                    }
+                    return member;
+                }).ToArray();
+
+                classSyntax = classSyntax.WithMembers(SyntaxFactory.List(newMembers));
+            }
+            else
+            {
+                // No existing constructors - create a new parameterless one
+                var instanceCtor = SyntaxFactory.ConstructorDeclaration(classSyntax.Identifier.ValueText)
+                    .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)))
+                    .WithBody(SyntaxFactory.Block(initStatements));
+
+                classSyntax = classSyntax.AddMembers(instanceCtor);
+            }
         }
 
         var annotations = classDecl.getAnnotations().ToList<AnnotationExpr>();
