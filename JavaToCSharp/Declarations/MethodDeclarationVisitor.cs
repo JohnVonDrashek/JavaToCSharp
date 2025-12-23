@@ -106,7 +106,17 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
         if (mods.Contains(Modifier.Keyword.PUBLIC))
             methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
         if (mods.Contains(Modifier.Keyword.PROTECTED))
-            methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.ProtectedKeyword));
+        {
+            // Check if this method should be public instead of protected (for override compatibility).
+            // If ANY config entry has this method name, make it public (applies to whole hierarchy).
+            var javaMethodName = methodDecl.getNameAsString();
+            bool shouldBePublic = context.Options?.SyntaxMappings.PublicMethodOverrides
+                .Any(entry => entry.EndsWith($".{javaMethodName}")) == true;
+            if (shouldBePublic)
+                methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+            else
+                methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.ProtectedKeyword));
+        }
         if (mods.Contains(Modifier.Keyword.PRIVATE))
             methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword));
         if (mods.Contains(Modifier.Keyword.STATIC))

@@ -8,6 +8,12 @@ public class SyntaxMapping
     public Dictionary<string, string> NonVoidMethodMappings { get; set; } = new();
     public Dictionary<string, string> AnnotationMappings { get; set; } = new();
 
+    /// <summary>
+    /// Methods that should be public instead of protected (for override visibility compatibility).
+    /// Format: "ClassName.methodName" (Java names, case-sensitive)
+    /// </summary>
+    public HashSet<string> PublicMethodOverrides { get; set; } = new();
+
     public static SyntaxMapping Deserialize(string yaml)
     {
         var deserializer = new YamlDotNet.Serialization.Deserializer();
