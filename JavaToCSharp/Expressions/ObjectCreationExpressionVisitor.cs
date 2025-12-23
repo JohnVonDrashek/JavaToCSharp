@@ -102,9 +102,24 @@ public class ObjectCreationExpressionVisitor : ExpressionVisitor<ObjectCreationE
             classSyntax = classSyntax.AddMembers(ctorSyntax, parentField);
         }
 
-        // TODO.PI: do we need to pass extends/implements here?
+        // Pass the base type as extends so that @Override methods get the override keyword
+        // But only if it's likely a class, not an interface (interfaces don't need override)
+        var baseType = newExpr.getType();
+        var baseTypeName = baseType.getNameAsString();
+
+        // Heuristic: common interface name patterns - these typically don't need override
+        bool isLikelyInterface = baseTypeName is "Callback" or "Runnable" or "Comparable" or "Comparator"
+            || baseTypeName.EndsWith("Listener")
+            || baseTypeName.EndsWith("Handler")
+            || baseTypeName.EndsWith("Observer")
+            || baseTypeName.EndsWith("able"); // Iterable, Cloneable, etc.
+
+        var extendsList = isLikelyInterface
+            ? new List<ClassOrInterfaceType>()
+            : new List<ClassOrInterfaceType> { baseType };
+
         foreach (var memberSyntax in anonBody
-                     .Select(member => BodyDeclarationVisitor.VisitBodyDeclarationForClass(context, classSyntax, member, new List<ClassOrInterfaceType>(), new List<ClassOrInterfaceType>()))
+                     .Select(member => BodyDeclarationVisitor.VisitBodyDeclarationForClass(context, classSyntax, member, extendsList, new List<ClassOrInterfaceType>()))
                      .OfType<MemberDeclarationSyntax>())
         {
             classSyntax = classSyntax.AddMembers(memberSyntax);
