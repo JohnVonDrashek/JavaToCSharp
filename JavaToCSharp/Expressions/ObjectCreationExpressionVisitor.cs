@@ -54,7 +54,12 @@ public class ObjectCreationExpressionVisitor : ExpressionVisitor<ObjectCreationE
 
     private static ObjectCreationExpressionSyntax VisitAnonymousClassCreationExpression(ConversionContext context, ObjectCreationExpr newExpr, List<BodyDeclaration> anonBody)
     {
-        string baseTypeName = TypeHelper.ConvertType(newExpr.getType().getNameAsString());
+        // Get the simple name for the anonymous type name (e.g., "Comparator" -> "AnonymousComparator")
+        string simpleTypeName = TypeHelper.ConvertType(newExpr.getType().getNameAsString());
+
+        // Get the full type syntax including generic arguments for the base type
+        var baseTypeSyntax = TypeHelper.GetSyntaxFromType(newExpr.getType());
+
         string anonTypeName = string.Empty;
 
         for (int i = 0; i <= 100; i++)
@@ -64,7 +69,7 @@ public class ObjectCreationExpressionVisitor : ExpressionVisitor<ObjectCreationE
                 throw new InvalidOperationException("Too many anonymous types");
             }
 
-            anonTypeName = $"Anonymous{baseTypeName}{(i == 0 ? string.Empty : i.ToString())}";
+            anonTypeName = $"Anonymous{simpleTypeName}{(i == 0 ? string.Empty : i.ToString())}";
 
             if (context.UsedAnonymousTypeNames.Add(anonTypeName))
             {
@@ -78,7 +83,7 @@ public class ObjectCreationExpressionVisitor : ExpressionVisitor<ObjectCreationE
                 SyntaxFactory.Token(SyntaxKind.SealedKeyword))
             .WithBaseList(SyntaxFactory.BaseList(SyntaxFactory.SeparatedList(new List<BaseTypeSyntax>
             {
-                SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(baseTypeName))
+                SyntaxFactory.SimpleBaseType(baseTypeSyntax)
             })));
 
         string? contextLastTypeName = context.LastTypeName;
