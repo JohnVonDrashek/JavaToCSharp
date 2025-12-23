@@ -108,12 +108,15 @@ public class ObjectCreationExpressionVisitor : ExpressionVisitor<ObjectCreationE
         var baseTypeName = baseType.getNameAsString();
 
         // Heuristic: common interface/class patterns that don't need override in C#
-        // - Interfaces: Callback, Runnable, *Listener, *Handler, etc.
+        // - Interfaces: Callback, Runnable, *Listener, *Handler, *Callback, etc.
         // - Java-specific classes: Thread (C# Thread doesn't have overridable Run)
+        // Note: Exact match "Listener" is often a nested abstract class (e.g., CellSelector.Listener),
+        // so only match *Listener suffix patterns (ActionListener, MouseListener, etc.)
         bool isLikelyInterface = baseTypeName is "Callback" or "Runnable" or "Comparable" or "Comparator" or "Thread"
-            || baseTypeName.EndsWith("Listener")
-            || baseTypeName.EndsWith("Handler")
-            || baseTypeName.EndsWith("Observer")
+            || (baseTypeName.EndsWith("Listener") && baseTypeName != "Listener")
+            || (baseTypeName.EndsWith("Handler") && baseTypeName != "Handler")
+            || (baseTypeName.EndsWith("Observer") && baseTypeName != "Observer")
+            || (baseTypeName.EndsWith("Callback") && baseTypeName != "Callback")
             || baseTypeName.EndsWith("able"); // Iterable, Cloneable, etc.
 
         var extendsList = isLikelyInterface
