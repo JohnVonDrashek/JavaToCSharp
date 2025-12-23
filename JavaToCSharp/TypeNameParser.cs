@@ -131,14 +131,23 @@ public static partial class TypeNameParser
                     {
                         _sb.Append('>');
                         NextToken();
-                        return true;
                     }
                 }
             }
-            else
+
+            // Handle array brackets after identifier or generics (e.g., boolean[], List<String>[])
+            while (_token.type is TokenType.LeftSquareBracket)
             {
-                return true;
+                _sb.Append('[');
+                NextToken();
+                if (_token.type is TokenType.RightSquareBracket)
+                {
+                    _sb.Append(']');
+                    NextToken();
+                }
             }
+
+            return true;
         }
         return false;
     }
