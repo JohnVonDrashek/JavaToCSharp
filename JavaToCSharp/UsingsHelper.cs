@@ -18,11 +18,35 @@ public static class UsingsHelper
         {
             // The import directive in Java will import a specific class.
             string importName = import.getNameAsString();
-            var lastPartStartIndex = importName.LastIndexOf('.');
-            var importNameWithoutClassName = lastPartStartIndex == -1 ?
-                                                 importName :
-                                                 importName[..lastPartStartIndex];
-            var nameSpace = TypeHelper.Capitalize(importNameWithoutClassName);
+
+            // Strip the imported class name
+            var lastDotIndex = importName.LastIndexOf('.');
+            if (lastDotIndex == -1)
+                continue; // Single-segment import, skip
+
+            var packagePath = importName[..lastDotIndex];
+
+            // Keep stripping while the last segment is capitalized (a class, not a package)
+            // Java convention: packages are lowercase, classes are PascalCase
+            while (true)
+            {
+                lastDotIndex = packagePath.LastIndexOf('.');
+                if (lastDotIndex == -1)
+                    break; // Only one segment left, use it
+
+                var lastSegment = packagePath[(lastDotIndex + 1)..];
+                if (lastSegment.Length > 0 && char.IsUpper(lastSegment[0]))
+                {
+                    // Last segment is a class name, strip it
+                    packagePath = packagePath[..lastDotIndex];
+                }
+                else
+                {
+                    break; // Last segment is a package (lowercase), we're done
+                }
+            }
+
+            var nameSpace = TypeHelper.Capitalize(packagePath);
 
             // Override namespace if a non empty mapping is found (mapping to empty string removes the import)
             if (options is not null && options.SyntaxMappings.ImportMappings.TryGetValue(importName, out var mappedNamespace))
