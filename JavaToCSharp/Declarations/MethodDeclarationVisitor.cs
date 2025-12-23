@@ -116,7 +116,6 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
         var annotations = methodDecl.getAnnotations().ToList<AnnotationExpr>();
         bool isOverride = false;
 
-        // TODO: figure out how to check for a non-interface base type
         if (annotations is { Count: > 0 })
         {
             foreach (var annotation in annotations)
@@ -125,8 +124,16 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
 
                 if (name == "Override")
                 {
-                    methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
-                    isOverride = true;
+                    // Only add override if extending a concrete class (not just implementing interfaces)
+                    // Java uses @Override for both, but C# only uses override for base class methods
+                    bool hasConcreteBase = extends.Count > 0 &&
+                        extends.Any(e => e.getNameAsString() != "Object");
+
+                    if (hasConcreteBase)
+                    {
+                        methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
+                        isOverride = true;
+                    }
                 }
                 // add annotation if a mapping is found (empty mapping means suppress the annotation)
                 else if (context.Options is not null && context.Options.SyntaxMappings.AnnotationMappings.TryGetValue(name, out var mappedAnnotation)
