@@ -159,14 +159,34 @@ public static class TypeHelper
     {
         string typeName = ConvertType(type.getNameAsString());
         var typeArgs = type.getTypeArguments().FromOptional<Ast.NodeList>()?.ToList<Type>();
+        var scope = type.getScope().FromOptional<ClassOrInterfaceType>();
 
         TypeSyntax typeSyntax;
 
         // C#'s Type is not generic, so drop type arguments when converting from Java's Class<T>
         if (typeArgs is { Count: > 0 } && typeName != "Type")
         {
-            typeSyntax = SyntaxFactory.GenericName(typeName)
+            var genericName = SyntaxFactory.GenericName(typeName)
                 .AddTypeArgumentListArguments(typeArgs.Select(t => SyntaxFactory.ParseTypeName(ConvertType(t))).ToArray());
+
+            if (scope != null)
+            {
+                // Build qualified name: Outer.Inner<T>
+                typeSyntax = SyntaxFactory.QualifiedName(
+                    GetNameSyntaxFromType(scope),
+                    genericName);
+            }
+            else
+            {
+                typeSyntax = genericName;
+            }
+        }
+        else if (scope != null)
+        {
+            // Build qualified name: Outer.Inner (non-generic)
+            typeSyntax = SyntaxFactory.QualifiedName(
+                GetNameSyntaxFromType(scope),
+                SyntaxFactory.IdentifierName(typeName));
         }
         else
         {
@@ -174,6 +194,36 @@ public static class TypeHelper
         }
 
         return typeSyntax;
+    }
+
+    /// <summary>
+    /// Gets a NameSyntax (suitable for left side of QualifiedName) from a ClassOrInterfaceType.
+    /// Handles nested scopes recursively.
+    /// </summary>
+    private static NameSyntax GetNameSyntaxFromType(ClassOrInterfaceType type)
+    {
+        string typeName = ConvertType(type.getNameAsString());
+        var typeArgs = type.getTypeArguments().FromOptional<Ast.NodeList>()?.ToList<Type>();
+        var scope = type.getScope().FromOptional<ClassOrInterfaceType>();
+
+        SimpleNameSyntax simpleName;
+
+        if (typeArgs is { Count: > 0 } && typeName != "Type")
+        {
+            simpleName = SyntaxFactory.GenericName(typeName)
+                .AddTypeArgumentListArguments(typeArgs.Select(t => SyntaxFactory.ParseTypeName(ConvertType(t))).ToArray());
+        }
+        else
+        {
+            simpleName = SyntaxFactory.IdentifierName(typeName);
+        }
+
+        if (scope != null)
+        {
+            return SyntaxFactory.QualifiedName(GetNameSyntaxFromType(scope), simpleName);
+        }
+
+        return simpleName;
     }
 
     public static ArgumentListSyntax GetSyntaxFromArguments(ConversionContext context, java.util.List args)
