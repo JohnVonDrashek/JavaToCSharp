@@ -107,8 +107,10 @@ public class ObjectCreationExpressionVisitor : ExpressionVisitor<ObjectCreationE
         var baseType = newExpr.getType();
         var baseTypeName = baseType.getNameAsString();
 
-        // Heuristic: common interface name patterns - these typically don't need override
-        bool isLikelyInterface = baseTypeName is "Callback" or "Runnable" or "Comparable" or "Comparator"
+        // Heuristic: common interface/class patterns that don't need override in C#
+        // - Interfaces: Callback, Runnable, *Listener, *Handler, etc.
+        // - Java-specific classes: Thread (C# Thread doesn't have overridable Run)
+        bool isLikelyInterface = baseTypeName is "Callback" or "Runnable" or "Comparable" or "Comparator" or "Thread"
             || baseTypeName.EndsWith("Listener")
             || baseTypeName.EndsWith("Handler")
             || baseTypeName.EndsWith("Observer")

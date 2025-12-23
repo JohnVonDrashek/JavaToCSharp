@@ -21,7 +21,7 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
         IReadOnlyList<ClassOrInterfaceType> extends,
         IReadOnlyList<ClassOrInterfaceType> implements)
     {
-        return VisitInternal(context, false, classSyntax.Identifier.Text, classSyntax.Modifiers, methodDecl, extends);
+        return VisitInternal(context, false, classSyntax.Identifier.Text, classSyntax.Modifiers, methodDecl, extends, implements);
     }
 
     public override MemberDeclarationSyntax VisitForInterface(ConversionContext context,
@@ -32,7 +32,7 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
         if (methodDecl.getBody().isPresent())
         {
             return VisitInternal(context, true, interfaceSyntax.Identifier.Text, interfaceSyntax.Modifiers, methodDecl,
-                ArraySegment<ClassOrInterfaceType>.Empty);
+                ArraySegment<ClassOrInterfaceType>.Empty, ArraySegment<ClassOrInterfaceType>.Empty);
         }
 
         var returnType = methodDecl.getType();
@@ -80,7 +80,8 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
         string typeIdentifier,
         SyntaxTokenList typeModifiers,
         MethodDeclaration methodDecl,
-        IReadOnlyList<ClassOrInterfaceType> extends)
+        IReadOnlyList<ClassOrInterfaceType> extends,
+        IReadOnlyList<ClassOrInterfaceType> implements)
     {
         var returnType = methodDecl.getType();
         var returnTypeName = TypeHelper.ConvertType(returnType.toString());
@@ -131,8 +132,28 @@ public class MethodDeclarationVisitor : BodyDeclarationVisitor<MethodDeclaration
 
                     if (hasConcreteBase)
                     {
-                        methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
-                        isOverride = true;
+                        var javaMethodName = methodDecl.getNameAsString().ToLower();
+
+                        // If the class implements interfaces, we can't easily tell if the method
+                        // is from the base class or an interface. Use conservative approach:
+                        // only add override for methods that are definitely from Object/base classes
+                        bool isKnownBaseClassMethod = javaMethodName is
+                            "tostring" or "hashcode" or "equals" or "clone" or "compareto" or
+                            "finalize" or "getclass" or "notify" or "notifyall" or "wait";
+
+                        if (implements.Count == 0)
+                        {
+                            // No interfaces - safe to add override for all @Override methods
+                            methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
+                            isOverride = true;
+                        }
+                        else if (isKnownBaseClassMethod)
+                        {
+                            // Has interfaces, but this is definitely a base class method
+                            methodSyntax = methodSyntax.AddModifiers(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
+                            isOverride = true;
+                        }
+                        // else: has interfaces and unknown method - skip override to be safe
                     }
                 }
                 // add annotation if a mapping is found (empty mapping means suppress the annotation)
